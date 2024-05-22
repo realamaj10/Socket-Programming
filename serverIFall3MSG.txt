@@ -1,0 +1,80 @@
+from socket import *
+import time
+
+serverPort = input('Enter port number:')  #take server port number you enter as input
+serverSocket = socket(AF_INET,SOCK_STREAM)  #creates new serverSocket where AF_INET represents Address Family (here IPv4),SOCK_STREAM represents socket type (here TCP)
+serverSocket.bind(('', int(serverPort)))  # associates the socket with address and port number
+serverSocket.listen(1)  # limit the number of clients the serverSocket listens to to 1
+print("Server is ready to receive your information")
+connectionSocket, addr = serverSocket.accept()  # creates particular socket for particular client request, good practice
+
+while 1:
+        # take first message that client sends and decode it from Byte to String
+        FirstMsgfromClient = connectionSocket.recv(3000).decode("utf-8") #buffer size
+        # split this first client message into whitespace , why?
+        splitFirstMessage =  FirstMsgfromClient.split()
+        sizeOfFile = splitFirstMessage[1]
+        # receive second message from client,which is excepted as mesaurement phase
+        secondClientMessage = connectionSocket.recv(int(sizeOfFile)).decode("utf-8")
+        SplitSecMsg = secondClientMessage.split()
+        delay = int(splitFirstMessage[2])  # turn delay to int?
+        # receive third message from client which is Termination Phase
+        ThirdClientMessage = connectionSocket.recv(int(sizeOfFile)).decode("utf-8")
+        SplitThirdMsg = ThirdClientMessage.split()
+        # if client input phase is 's', delay is numeric,
+        # and there are only 3 elements in the message array(Protocol Phase,fileSize, delay)
+        if ((splitFirstMessage[0] == 's' and splitFirstMessage[2].isnumeric() and len(splitFirstMessage) == 3) and
+                (SplitSecMsg[0] == 'm' and len(SplitSecMsg) == 2) and (
+                        SplitThirdMsg[0] == 't' and len(SplitThirdMsg) == 1)):
+                #Phase=First;
+                print("200 OK: Ready\n")
+                # check units of size of our file
+                # check if size of file is in bytes or kilobytes in order to calculate ROUND TRIP TIME or THROUGHPUT
+                # if size of file is in bytes, we calculate ROUNDTRIPTIME
+                # if size of file is in kilo bytes, we calculate THROUGHPUT
+                sizeOfFile = str(sizeOfFile)
+                if (sizeOfFile == '1' or sizeOfFile == '100' or sizeOfFile == '200' or sizeOfFile == '400' or sizeOfFile == '800' or sizeOfFile == '1000'):
+                        sizeOfFile = int(sizeOfFile)  # parse size of file from byte to integer
+                elif (sizeOfFile == '1K' or sizeOfFile == '2K' or sizeOfFile == '4K' or sizeOfFile == '8K' or sizeOfFile == '16K' or sizeOfFile == '32K'):
+                        if 'K' in sizeOfFile and len(sizeOfFile) > 1:
+                            sizeOfFile = (sizeOfFile.replace('K','')) * 1000
+                            sizeOfFile = int(sizeOfFile)
+
+
+        #suppose second meessage is valid
+        time.sleep(delay)  # apply the delay requested by client's initial message
+        connectionSocket.send(secondClientMessage.encode("utf-8"))  # echo back the message received by the client
+        #after getting t
+        # enter third phase , terminate the connection
+        terminationMsg = '200 OK: Closing Connection'
+        print(terminationMsg, "\n")  # print message of successful termination
+        connectionSocket.send(terminationMsg.encode("utf-8"))  # send string of message of termination to the client
+        connectionSocket.close()  # successfully terminate the connection
+
+        #CHECK FOR ERRORS
+
+        #if first message is invalid
+        if(splitFirstMessage[0] != 's' and splitFirstMessage[2].isspace() and len(splitFirstMessage) != 3):
+                invalidSetup = '404 ERROR: Invalid Connection Setup Message'
+                print("404 ERROR: Invalid Connection Setup Message \n")
+                connectionSocket.send(invalidSetup.encode("utf-8"))
+                connectionSocket.close()
+        #if second message has invalid length
+        elif(SplitSecMsg[0] == 'm' and len(SplitSecMsg) != 2):
+                invalidMeasure = '404 ERROR: Invalid Measurement Message'
+                print(invalidMeasure, "\n")  # print appropriate error
+                connectionSocket.send(
+                        invalidMeasure.encode("utf-8"))  # send string of appropriate error message to the client
+                connectionSocket.close()  # as the request is not valid, terminate the established socket connection
+        #if third message has invalid length
+        elif(SplitThirdMsg[0] == 't' and len(SplitThirdMsg) != 1):
+                terminationError = '404 ERROR: Invalid Connection Termination Message'
+                print(terminationError, "\n")
+                connectionSocket.send(terminationError.encode("utf-8"))
+                # do not close socket!
+        #some other invalid input
+        else:
+                print("404 ERROR: Invalid Input \n")  # invalid input, as it does not match any of our cases
+                invalidInput = '404 ERROR: Invalid Input'
+                connectionSocket.send(invalidInput.encode("utf-8"))
+                break
